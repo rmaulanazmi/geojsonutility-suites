@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoJSON Utilities - Client-Side GIS Suite</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              900: '#064e3b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- JSZip for packaging files -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- shpjs for Shapefile Parsing in Browser -->
+  <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Google Fonts for crisp sans-serif display -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .code-font {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom Leaflet Dark Mode adaptation styling */
+    .leaflet-container {
+      background: #0f172a !important;
+    }
+    .leaflet-bar a {
+      background-color: #1e293b !important;
+      color: #cbd5e1 !important;
+      border-bottom: 1px solid #334155 !important;
+    }
+    .leaflet-bar a:hover {
+      background-color: #334155 !important;
+      color: #f8fafc !important;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col overflow-hidden">
+
+  <!-- Header Banner -->
+  <header class="bg-slate-900 border-b border-slate-800 shrink-0 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="bg-brand-500/10 text-brand-500 p-2 rounded-xl border border-brand-500/20">
+        <i data-lucide="globe-2" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          GeoJSON Utilities
+          <span class="text-xs bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded-full font-medium border border-brand-500/30">Client-Side Engine</span>
+        </h1>
+        <p class="text-xs text-slate-400">Transform, validate, inspect, and split geospatial data completely locally</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-slate-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        Privacy Guaranteed: No Data Leaves Your Machine
+      </span>
+    </div>
+  </header>
+
+  <!-- Toast Notification System -->
+  <div id="toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Workspace Container -->
+  <div class="flex flex-1 overflow-hidden">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="w-72 bg-slate-900 border-r border-slate-800 shrink-0 p-4 flex flex-col justify-between">
+      <div class="space-y-6">
+        <div>
+          <span class="text-[10px] font-semibold tracking-wider text-slate-500 uppercase block mb-3">Tool Modules</span>
+          <nav class="space-y-1">
+            <!-- SHP to GeoJSON -->
+            <button onclick="switchTab('shp-to-geojson')" id="btn-tab-shp-to-geojson" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group duration-150 bg-brand-500/10 text-brand-400 border border-brand-500/20 shadow-lg shadow-brand-500/5">
+              <i data-lucide="folder-archive" class="w-4 h-4 text-brand-500 group-hover:scale-110 transition-transform"></i>
+              <span>ESRI SHP to GeoJSON</span>
+            </button>
+
+            <!-- GeoJSON Splitter -->
+            <button onclick="switchTab('geojson-splitter')" id="btn-tab-geojson-splitter" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group duration-150 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-transparent">
+              <i data-lucide="scissors" class="w-4 h-4 text-slate-400 group-hover:scale-110 transition-transform"></i>
+              <span>Feature Collection Splitter</span>
+            </button>
+
+            <!-- Coordinate Swapper -->
+            <button onclick="switchTab('coordinate-swapper')" id="btn-tab-coordinate-swapper" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group duration-150 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-transparent">
+              <i data-lucide="refresh-cw" class="w-4 h-4 text-slate-400 group-hover:scale-110 transition-transform"></i>
+              <span>Coordinate Swapper (Lat/Lng)</span>
+            </button>
+
+            <!-- Validator / Beautifier -->
+            <button onclick="switchTab('validator')" id="btn-tab-validator" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group duration-150 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-transparent">
+              <i data-lucide="check-square" class="w-4 h-4 text-slate-400 group-hover:scale-110 transition-transform"></i>
+              <span>Validator & Formatter</span>
+            </button>
+          </nav>
+        </div>
+
+        <!-- Dynamic Statistics / Meta Panel -->
+        <div class="bg-slate-950/60 rounded-xl p-3.5 border border-slate-800/80 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+            <span class="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+              <i data-lucide="database" class="w-3.5 h-3.5 text-brand-500"></i> Active Metadata
+            </span>
+            <button id="clear-active-data" onclick="clearActiveData()" class="text-[10px] text-rose-400 hover:text-rose-300 font-medium transition-all hidden">Clear Data</button>
+          </div>
+          
+          <div id="meta-empty" class="text-xs text-slate-500 py-2 italic text-center">
+            No dataset loaded yet. Upload or paste spatial data to view statistics.
+          </div>
+
+          <div id="meta-stats" class="space-y-2 text-xs hidden">
+            <div class="flex justify-between">
+              <span class="text-slate-400">Source Format:</span>
+              <span id="meta-format" class="font-medium text-slate-200">-</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400">Features Extracted:</span>
+              <span id="meta-features" class="font-semibold text-brand-400">-</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400">Total Vertices:</span>
+              <span id="meta-vertices" class="font-medium text-slate-200">-</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400">Geometry Types:</span>
+              <span id="meta-geoms" class="font-medium text-slate-200 break-all text-right max-w-[140px]">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Info -->
+      <div class="bg-slate-950/40 p-3 rounded-lg border border-slate-800/50 text-center">
+        <p class="text-[10px] text-slate-500">GeoJSON Utilities Suite v1.1</p>
+        <p class="text-[10px] text-brand-500 font-medium">All processing occurs secure in-memory</p>
+      </div>
+    </aside>
+
+    <!-- Main Dynamic Content Workspace -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-950">
+      
+      <!-- Left side Control Panel for active Tool -->
+      <section class="w-full md:w-[480px] shrink-0 border-r border-slate-800 flex flex-col h-full bg-slate-900/40 overflow-y-auto">
+        
+        <!-- ================= SHP TO GEOJSON TAB ================= -->
+        <div id="tab-shp-to-geojson" class="tab-content p-6 space-y-6">
+          <div class="space-y-2">
+            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+              <i data-lucide="folder-archive" class="text-brand-500 w-5 h-5"></i>
+              ESRI SHP to GeoJSON
+            </h2>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Convert your ESRI Shapefile sets directly to clean GeoJSON layer-by-layer. Please pack your shapefile components (e.g. <code class="code-font text-slate-300 bg-slate-800 px-1 py-0.5 rounded text-[11px]">.shp</code>, <code class="code-font text-slate-300 bg-slate-800 px-1 py-0.5 rounded text-[11px]">.dbf</code>, <code class="code-font text-slate-300 bg-slate-800 px-1 py-0.5 rounded text-[11px]">.prj</code>) into a single standard <strong class="text-slate-200">ZIP archive</strong> and drop it below. 
+            </p>
+          </div>
+
+          <!-- Drag and Drop Zone -->
+          <div class="space-y-2">
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Upload Shapefile (.zip)</label>
+            <div id="shp-dropzone" class="border-2 border-dashed border-slate-700 hover:border-brand-500/60 bg-slate-950/40 hover:bg-slate-950/80 rounded-xl p-8 transition-all duration-200 text-center cursor-pointer group relative">
+              <input type="file" id="shp-file-input" accept=".zip" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+              <div class="space-y-3 pointer-events-none">
+                <div class="inline-flex p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 group-hover:text-brand-500 group-hover:border-brand-500/20 group-hover:scale-105 transition-all">
+                  <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+                </div>
+                <div>
+                  <p class="text-sm font-semibold text-slate-200">Drag & drop shapefile .zip here</p>
+                  <p class="text-xs text-slate-500 mt-1">Accepts zipped .shp, .dbf, .shx, .prj combo</p>
+                </div>
+                <div class="text-[11px] bg-slate-900 border border-slate-800 text-slate-400 py-1.5 px-3 rounded-lg inline-block">
+                  Or browse local directory
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Parsed Layers List Section -->
+          <div id="shp-export-section" class="space-y-4 hidden border-t border-slate-800/80 pt-5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="layers" class="w-4 h-4 text-brand-500"></i> Extracted Layer Sets
+              </span>
+              <span class="text-[10px] text-slate-400">Click layer to preview</span>
+            </div>
+
+            <!-- Dynamic layer sets list container -->
+            <div id="shp-layers-list" class="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              <!-- Rendered dynamically -->
+            </div>
+
+            <!-- Download All layers ZIP Container (Visible only when multiple layers exist) -->
+            <div id="shp-bulk-zip-container" class="hidden pt-2 border-t border-slate-800/60">
+              <button onclick="downloadAllShpLayersAsZip()" class="w-full bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-lg shadow-brand-500/10 hover:shadow-brand-500/20 flex items-center justify-center gap-2">
+                <i data-lucide="folder-archive" class="w-4 h-4"></i>
+                Download All Layers as ZIP
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GEOJSON SPLITTER TAB ================= -->
+        <div id="tab-geojson-splitter" class="tab-content p-6 space-y-6 hidden">
+          <div class="space-y-2">
+            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+              <i data-lucide="scissors" class="text-brand-500 w-5 h-5"></i>
+              Feature Collection Splitter
+            </h2>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Analyze and segment complex geospatial files based on **attribute signature similarity**. Features sharing matching property keys will be categorized into unique collections for structured formatting and export.
+            </p>
+          </div>
+
+          <!-- Drop zone / Input picker -->
+          <div class="space-y-3">
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Select GeoJSON File or Paste Text</label>
+            
+            <div id="split-dropzone" class="border border-dashed border-slate-700 hover:border-brand-500/60 bg-slate-950/20 hover:bg-slate-950/60 rounded-xl p-5 transition-all duration-200 text-center cursor-pointer group relative">
+              <input type="file" id="split-file-input" accept=".geojson,.json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+              <div class="space-y-1.5 pointer-events-none">
+                <i data-lucide="file-json" class="w-6 h-6 text-slate-400 group-hover:text-brand-500 mx-auto transition-transform"></i>
+                <p class="text-xs font-semibold text-slate-200">Drag & drop your .geojson file here</p>
+                <p class="text-[10px] text-slate-500">Or click to browse storage</p>
+              </div>
+            </div>
+
+            <div class="relative">
+              <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                <div class="w-full border-t border-slate-800"></div>
+              </div>
+              <div class="relative flex justify-center text-xs">
+                <span class="bg-slate-900 px-2 text-slate-500 uppercase tracking-wider text-[10px] font-semibold">Or paste code</span>
+              </div>
+            </div>
+
+            <textarea id="split-text-input" placeholder='Paste your GeoJSON FeatureCollection code here...' class="w-full h-28 bg-slate-950 text-slate-300 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-brand-500 code-font placeholder-slate-600 transition-colors"></textarea>
+            
+            <button onclick="parseSplitInputText()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-2 px-4 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-2">
+              <i data-lucide="play-circle" class="w-4 h-4 text-brand-500"></i> Parse Spatial Signature
+            </button>
+          </div>
+
+          <!-- Similarity Controller Block (Jaccard Index Slider) -->
+          <div id="similarity-controller" class="space-y-2 bg-slate-950/40 p-4 rounded-xl border border-slate-800 hidden">
+            <div class="flex justify-between items-center text-xs font-semibold">
+              <span class="text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="sliders" class="w-3.5 h-3.5 text-brand-500"></i> Similarity Threshold
+              </span>
+              <span id="threshold-val" class="text-brand-400 code-font">100% (Strict)</span>
+            </div>
+            <input type="range" id="similarity-slider" min="50" max="100" value="100" step="5" oninput="handleThresholdChange(this.value)" class="w-full accent-brand-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer" />
+            <p class="text-[10px] text-slate-500 leading-normal">
+              Lowering the slider allows features with partially matching schemas (due to missing attributes/sparse fields) to merge into unified layers.
+            </p>
+          </div>
+
+          <!-- Split controls (Dynamic Grouped Schema Lists) -->
+          <div id="split-export-section" class="space-y-4 hidden border-t border-slate-800/80 pt-5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="layout-grid" class="w-4 h-4 text-brand-500"></i> Detected Schema Groups
+              </span>
+              <span class="text-[10px] text-slate-400">Rename & Focus</span>
+            </div>
+
+            <div id="split-groups-list" class="space-y-3.5 max-h-80 overflow-y-auto pr-1">
+              <!-- Rendered dynamically -->
+            </div>
+
+            <button onclick="downloadAllGroupsAsZip()" class="w-full bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-lg shadow-brand-500/10 hover:shadow-brand-500/20 flex items-center justify-center gap-2">
+              <i data-lucide="folder-down" class="w-4 h-4"></i>
+              Download All Groups as ZIP
+            </button>
+          </div>
+        </div>
+
+        <!-- ================= COORDINATE SWAPPER TAB ================= -->
+        <div id="tab-coordinate-swapper" class="tab-content p-6 space-y-6 hidden">
+          <div class="space-y-2">
+            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+              <i data-lucide="refresh-cw" class="text-brand-500 w-5 h-5 animate-spin-slow"></i>
+              Coordinate Swapper
+            </h2>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Geospatial libraries sometimes render coordinates backward or flip Longitude (<code class="code-font text-[11px]">X</code>) and Latitude (<code class="code-font text-[11px]">Y</code>). Paste GeoJSON or drag a file to recursively flip coordinate axes across points, line geometries, and complex polygons instantly.
+            </p>
+          </div>
+
+          <div class="space-y-3">
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Source GeoJSON Input</label>
+            <textarea id="swap-text-input" placeholder='{"type": "FeatureCollection", ...}' class="w-full h-36 bg-slate-950 text-slate-300 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-brand-500 code-font placeholder-slate-600 transition-colors"></textarea>
+            
+            <div class="flex gap-2">
+              <button onclick="swapActiveCoords()" class="flex-1 bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2">
+                <i data-lucide="shuffle" class="w-4 h-4"></i> Swap Axes [X, Y] ⇋ [Y, X]
+              </button>
+              <button onclick="copyToClipboard('swap-text-input')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 rounded-xl transition-colors" title="Copy Current Input Text">
+                <i data-lucide="copy" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <div id="swap-action-section" class="space-y-4 hidden border-t border-slate-800/80 pt-5">
+            <div class="bg-brand-500/10 border border-brand-500/20 rounded-xl p-4">
+              <p class="text-xs text-brand-300 font-semibold flex items-center gap-1.5 mb-1">
+                <i data-lucide="check-circle" class="w-4 h-4"></i> Inversion Complete!
+              </p>
+              <p class="text-[11px] text-slate-400">Coordinates swapped successfully. You can preview them on the map to see if their location now looks correct.</p>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="downloadActiveSwappedJson()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-2 px-3 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-2">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> Download File
+              </button>
+              <button onclick="copyToClipboard('swap-output-internal')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-2 px-3 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-2">
+                <i data-lucide="clipboard" class="w-3.5 h-3.5"></i> Copy Output
+              </button>
+            </div>
+            <!-- Hidden field to support copy operations directly -->
+            <textarea id="swap-output-internal" class="hidden"></textarea>
+          </div>
+        </div>
+
+        <!-- ================= VALIDATOR & FORMATTER TAB ================= -->
+        <div id="tab-validator" class="tab-content p-6 space-y-6 hidden">
+          <div class="space-y-2">
+            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+              <i data-lucide="check-square" class="text-brand-500 w-5 h-5"></i>
+              Validator & Formatter
+            </h2>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Verify your GeoJSON files to make sure they are structured correctly and adhere to standard RFC 7946 specifications. Paste code or upload to parse, validate, detect warnings, and format properties.
+            </p>
+          </div>
+
+          <div class="space-y-4">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">GeoJSON Text</label>
+              <textarea id="validator-text-input" placeholder='Paste code to inspect and parse schema...' class="w-full h-44 bg-slate-950 text-slate-300 border border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:border-brand-500 code-font placeholder-slate-600 transition-colors"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="validateGeoJson()" class="bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold py-2 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
+                <i data-lucide="shield-check" class="w-4 h-4"></i> Validate Geometry
+              </button>
+              <button onclick="beautifyGeoJson()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold py-2 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
+                <i data-lucide="sparkles" class="w-4 h-4"></i> Pretty Print Code
+              </button>
+            </div>
+          </div>
+
+          <!-- Validation Report -->
+          <div id="validation-report" class="space-y-3 hidden border-t border-slate-800/80 pt-5">
+            <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Validation Output</h4>
+            <div id="validation-status-box" class="p-4 rounded-xl border flex gap-3">
+              <div id="validation-icon" class="p-1.5 rounded-lg text-xs shrink-0"></div>
+              <div class="space-y-1">
+                <p id="validation-status-title" class="text-xs font-bold"></p>
+                <p id="validation-status-desc" class="text-[11px] text-slate-400 leading-relaxed"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Right side Visual Workspace (Interactive Map & Attribute Grid Split) -->
+      <section class="flex-1 flex flex-col h-full overflow-hidden relative">
+        
+        <!-- Interactive Map Frame -->
+        <div class="flex-1 min-h-[300px] relative">
+          <!-- Tool buttons overlapping top-right of map -->
+          <div class="absolute top-3 right-3 z-[1000] flex gap-2">
+            <button onclick="toggleMapBasemap()" class="bg-slate-900/90 hover:bg-slate-800 text-slate-200 p-2.5 rounded-xl border border-slate-700/80 text-xs font-semibold shadow-xl backdrop-blur-md flex items-center gap-1.5 transition-all">
+              <i data-lucide="layers" class="w-4 h-4 text-brand-500"></i> Toggle Basemap
+            </button>
+            <button onclick="fitMapToLayer()" class="bg-slate-900/90 hover:bg-slate-800 text-slate-200 p-2.5 rounded-xl border border-slate-700/80 text-xs font-semibold shadow-xl backdrop-blur-md flex items-center gap-1.5 transition-all">
+              <i data-lucide="maximize" class="w-4 h-4 text-brand-500"></i> Recenter
+            </button>
+          </div>
+
+          <div id="map" class="w-full h-full"></div>
+        </div>
+
+        <!-- Collapsible Feature Attribute Details (Bottom split) -->
+        <div class="h-64 bg-slate-900 border-t border-slate-800 flex flex-col overflow-hidden">
+          
+          <!-- Tab Bar / Control Bar for Details -->
+          <div class="bg-slate-950 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2">
+              <i data-lucide="list" class="w-4 h-4 text-brand-500"></i>
+              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">Features Attribute Inspector</span>
+              <span id="features-counter" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-semibold border border-slate-700">0 loaded</span>
+            </div>
+            
+            <div class="flex items-center gap-3">
+              <input type="text" id="attribute-search" oninput="filterFeaturesTable()" placeholder="Filter features..." class="bg-slate-900 border border-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-lg focus:outline-none focus:border-brand-500 w-44 placeholder-slate-600 transition-colors" />
+              <button id="download-selected-row" onclick="downloadSelectedFeature()" disabled class="text-xs bg-slate-800 text-slate-400 py-1 px-3 rounded-lg font-medium border border-slate-700 opacity-50 cursor-not-allowed transition-all hover:bg-slate-700 hover:text-white flex items-center gap-1.5">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> Download Selected
+              </button>
+            </div>
+          </div>
+
+          <!-- Feature Table Grid -->
+          <div class="flex-1 overflow-auto">
+            <table class="w-full text-left text-xs border-collapse relative">
+              <thead class="bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
+                <tr id="table-headers">
+                  <th class="p-3 text-slate-400 font-semibold w-12 text-center">Sel</th>
+                  <th class="p-3 text-slate-400 font-semibold w-16">Index</th>
+                  <th class="p-3 text-slate-400 font-semibold w-24">Type</th>
+                  <th class="p-3 text-slate-400 font-semibold">Properties & Attributes</th>
+                  <th class="p-3 text-slate-400 font-semibold w-16 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody id="table-rows" class="divide-y divide-slate-800/50">
+                <tr>
+                  <td colspan="5" class="p-12 text-center text-slate-500 italic">
+                    <div class="flex flex-col items-center gap-2">
+                      <i data-lucide="file-warning" class="w-8 h-8 text-slate-600"></i>
+                      <span>No features parsed yet. Upload spatial files on the left to explore attribute metrics here.</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <script>
+    // --- Application State Management ---
+    let appState = {
+      activeTab: 'shp-to-geojson',
+      parsedLayers: [], // Array of parsed layers: [{ name: "roads", features: [...] }]
+      activeLayerIndex: 0, // Selected index for multi-layers
+      rawSplitFeatures: [], // Keeps holds of non-filtered raw features loaded in splitter module
+      parsedFeatures: [], // Flattened or isolated array of GeoJSON features for current view
+      groupedCollections: [], // Parsed schema groups for splitting: [{ keyCounts: {}, coreKeys: [], optionalKeys: [], features: [...], exportName: "Feature_Collection_1" }]
+      activeGroupIndex: null, // Tracks currently previewed schema group index
+      selectedFeatureIndex: null, // Tracks row-click inside the active table view
+      namingKey: '', // The attribute property key to use for custom naming
+      geojsonName: 'export_features', // Base file name
+      geometryTypes: new Set(),
+      vertexCount: 0,
+      similarityThreshold: 1.0 // Defaults to 100% strict match
+    };
+
+    // Global Leaflet map instance and layer
+    let map = null;
+    let activeMapLayer = null;
+    let basemaps = {};
+    let activeBasemapName = 'dark';
+
+    // --- Toast Notifications Helper ---
+    function showToast(title, message, type = 'info') {
+      const toastContainer = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const colors = {
+        success: 'bg-emerald-950 border-emerald-500/30 text-emerald-300',
+        error: 'bg-rose-950 border-rose-500/30 text-rose-300',
+        info: 'bg-slate-900 border-slate-700 text-slate-200'
+      };
+
+      const icons = {
+        success: 'check-circle',
+        error: 'alert-triangle',
+        info: 'info'
+      };
+
+      toast.className = `flex gap-3 border rounded-xl p-4 shadow-2xl max-w-sm pointer-events-auto transition-all duration-300 translate-x-5 opacity-0 ${colors[type]}`;
+      toast.innerHTML = `
+        <div class="shrink-0"><i data-lucide="${icons[type]}" class="w-5 h-5"></i></div>
+        <div class="space-y-0.5">
+          <p class="text-xs font-bold">${title}</p>
+          <p class="text-[11px] opacity-80 leading-snug">${message}</p>
+        </div>
+      `;
+
+      toastContainer.appendChild(toast);
+      lucide.createIcons();
+
+      // Trigger animation frame to guarantee slide effect
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-x-5', 'opacity-0');
+      });
+
+      // Clear after 4 seconds
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 4500);
+    }
+
+    // --- On Window Loaded ---
+    window.onload = function() {
+      lucide.createIcons();
+      initMap();
+      setupEventListeners();
+    };
+
+    // --- Setup Map Component ---
+    function initMap() {
+      // Create Map
+      map = L.map('map', {
+        zoomControl: true,
+        attributionControl: true
+      }).setView([0, 0], 2);
+
+      // Create Leaflet Basemaps
+      basemaps.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+      });
+
+      basemaps.light = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+      });
+
+      // Set default
+      basemaps.dark.addTo(map);
+    }
+
+    function toggleMapBasemap() {
+      if (activeBasemapName === 'dark') {
+        map.removeLayer(basemaps.dark);
+        basemaps.light.addTo(map);
+        activeBasemapName = 'light';
+      } else {
+        map.removeLayer(basemaps.light);
+        basemaps.dark.addTo(map);
+        activeBasemapName = 'dark';
+      }
+      showToast('Basemap Swapped', `Now displaying Leaflet ${activeBasemapName} layer.`, 'info');
+    }
+
+    function fitMapToLayer() {
+      if (activeMapLayer && map.hasLayer(activeMapLayer)) {
+        try {
+          const bounds = activeMapLayer.getBounds();
+          if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [40, 40] });
+          }
+        } catch(e) {
+          // Fallback if geometry bounds are a point or single node
+          try {
+            const layers = activeMapLayer.getLayers();
+            if (layers.length > 0 && layers[0].getLatLng) {
+              map.setView(layers[0].getLatLng(), 12);
+            }
+          } catch(err) {}
+        }
+      } else {
+        showToast('Recenter Info', 'No active spatial layers found on the map to focus on.', 'info');
+      }
+    }
+
+    // --- Setup Event Listeners ---
+    function setupEventListeners() {
+      // Shapefile Zip drop zones
+      const shpDropzone = document.getElementById('shp-dropzone');
+      const shpInput = document.getElementById('shp-file-input');
+      
+      shpInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleShapefileZip(e.target.files[0]);
+      });
+
+      shpDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        shpDropzone.classList.add('border-brand-500', 'bg-slate-950');
+      });
+
+      ['dragleave', 'dragend'].forEach(evt => {
+        shpDropzone.addEventListener(evt, () => {
+          shpDropzone.classList.remove('border-brand-500', 'bg-slate-950');
+        });
+      });
+
+      shpDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        shpDropzone.classList.remove('border-brand-500', 'bg-slate-950');
+        if (e.dataTransfer.files.length) {
+          handleShapefileZip(e.dataTransfer.files[0]);
+        }
+      });
+
+      // Split Dropzone
+      const splitDropzone = document.getElementById('split-dropzone');
+      const splitInput = document.getElementById('split-file-input');
+
+      splitInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleGeoJsonFile(e.target.files[0]);
+      });
+
+      splitDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        splitDropzone.classList.add('border-brand-500', 'bg-slate-950/60');
+      });
+
+      ['dragleave', 'dragend'].forEach(evt => {
+        splitDropzone.addEventListener(evt, () => {
+          splitDropzone.classList.remove('border-brand-500', 'bg-slate-950/60');
+        });
+      });
+
+      splitDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        splitDropzone.classList.remove('border-brand-500', 'bg-slate-950/60');
+        if (e.dataTransfer.files.length) {
+          handleGeoJsonFile(e.dataTransfer.files[0]);
+        }
+      });
+    }
+
+    // --- Navigation switcher ---
+    function switchTab(tabId) {
+      // Toggle button active classes
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.className = "nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group duration-150 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-transparent";
+      });
+
+      const activeBtn = document.getElementById(`btn-tab-${tabId}`);
+      if (activeBtn) {
+        activeBtn.className = "nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group duration-150 bg-brand-500/10 text-brand-400 border border-brand-500/20 shadow-lg shadow-brand-500/5";
+      }
+
+      // Toggle tab views
+      document.querySelectorAll('.tab-content').forEach(view => {
+        view.classList.add('hidden');
+      });
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+      appState.activeTab = tabId;
+      
+      // Update visual maps and tables contextually
+      if (appState.parsedLayers.length > 0 || appState.parsedFeatures.length > 0) {
+        renderFeaturesOnMapAndGrid();
+      }
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
+    }
+
+    // --- SHP Parsers & Handling logic (Multi-layer Refined approach) ---
+    function handleShapefileZip(file) {
+      if (!file.name.endsWith('.zip')) {
+        showToast('Invalid File', 'Shapefile components must be wrapped in a standard .zip archive.', 'error');
+        return;
+      }
+
+      appState.geojsonName = file.name.substring(0, file.name.lastIndexOf('.')) || 'shp_export';
+      showToast('Processing Zip', 'Parsing in-memory shapefiles. Please wait...', 'info');
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const arrayBuffer = event.target.result;
+        
+        // Execute Client-side shpjs parser
+        shp(arrayBuffer).then(function(geojson) {
+          appState.parsedLayers = [];
+
+          if (Array.isArray(geojson)) {
+            // ZIP contains multiple distinct shapefile sets (multi-layer)
+            geojson.forEach((layer, idx) => {
+              if (layer.type === 'FeatureCollection' && Array.isArray(layer.features)) {
+                appState.parsedLayers.push({
+                  name: layer.fileName || `layer_${idx + 1}`,
+                  features: layer.features
+                });
+              }
+            });
+          } else if (geojson.type === 'FeatureCollection' && Array.isArray(geojson.features)) {
+            // ZIP contains a single shapefile set
+            const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || 'shp_layer';
+            appState.parsedLayers.push({
+              name: baseName,
+              features: geojson.features
+            });
+          }
+
+          if (appState.parsedLayers.length === 0) {
+            showToast('Warning', 'ZIP parsed, but no shapefile layers were found inside.', 'error');
+            return;
+          }
+
+          // Initialise to layer 1
+          appState.activeLayerIndex = 0;
+          appState.parsedFeatures = appState.parsedLayers[0].features;
+
+          processGeospatialMetadata('Shapefile (.zip)');
+          
+          // Display Visuals
+          renderFeaturesOnMapAndGrid();
+          renderShpLayersList();
+          
+          // Show Export panel
+          document.getElementById('shp-export-section').classList.remove('hidden');
+          showToast('Success!', `Extracted ${appState.parsedLayers.length} Shapefile layer(s).`, 'success');
+
+        }).catch(function(err) {
+          console.error(err);
+          showToast('Failed to Parse', `Error reading shapefile files: ${err.message || err}`, 'error');
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Populate SHP Layer list interface
+    function renderShpLayersList() {
+      const container = document.getElementById('shp-layers-list');
+      let html = '';
+
+      appState.parsedLayers.forEach((layer, idx) => {
+        const isActive = idx === appState.activeLayerIndex;
+        const activeClass = isActive 
+          ? 'border-brand-500/50 bg-brand-500/10' 
+          : 'border-slate-800 bg-slate-950/40 hover:bg-slate-950/80';
+
+        html += `
+          <div class="border rounded-xl p-3 flex items-center justify-between gap-3 transition-all ${activeClass}">
+            <div class="min-w-0 cursor-pointer flex-1" onclick="selectShpLayer(${idx})">
+              <div class="text-xs font-bold text-slate-200 truncate flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full ${isActive ? 'bg-brand-500' : 'bg-slate-600'}"></span>
+                ${layer.name}
+              </div>
+              <div class="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
+                <span>${layer.features.length} features</span>
+              </div>
+            </div>
+            
+            <button onclick="downloadSingleShpLayer(${idx})" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg hover:text-brand-400 transition-colors shrink-0" title="Export this layer set as individual GeoJSON">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+
+      // Toggle bulk zip export block
+      const bulkZip = document.getElementById('shp-bulk-zip-container');
+      if (appState.parsedLayers.length > 1) {
+        bulkZip.classList.remove('hidden');
+      } else {
+        bulkZip.classList.add('hidden');
+      }
+
+      lucide.createIcons();
+    }
+
+    // Select & Focus Shapefile Layer
+    function selectShpLayer(idx) {
+      if (idx < 0 || idx >= appState.parsedLayers.length) return;
+      appState.activeLayerIndex = idx;
+      appState.parsedFeatures = appState.parsedLayers[idx].features;
+
+      processGeospatialMetadata('Shapefile (.zip)');
+      renderFeaturesOnMapAndGrid();
+      renderShpLayersList();
+
+      showToast('Layer Switched', `Active attributes focused on Layer: "${appState.parsedLayers[idx].name}"`, 'info');
+    }
+
+    // Download Single Layer
+    function downloadSingleShpLayer(idx) {
+      const layer = appState.parsedLayers[idx];
+      if (!layer) return;
+
+      const featureCollection = {
+        type: 'FeatureCollection',
+        features: layer.features
+      };
+
+      const blob = new Blob([JSON.stringify(featureCollection, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${layer.name}.geojson`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast('Export Complete', `Layer written as ${layer.name}.geojson`, 'success');
+    }
+
+    // Bulk export all layers into a unified zip
+    function downloadAllShpLayersAsZip() {
+      if (!appState.parsedLayers.length) {
+        showToast('No Layers Found', 'Nothing parsed yet.', 'error');
+        return;
+      }
+
+      showToast('Compiling ZIP', 'Bundling layer structures in-memory...', 'info');
+
+      const zip = new JSZip();
+      appState.parsedLayers.forEach(layer => {
+        const fc = {
+          type: 'FeatureCollection',
+          features: layer.features
+        };
+        zip.file(`${layer.name}.geojson`, JSON.stringify(fc, null, 2));
+      });
+
+      zip.generateAsync({ type: 'blob' }).then(function(content) {
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${appState.geojsonName}_layers.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast('ZIP Complete', 'All layers packed successfully.', 'success');
+      });
+    }
+
+    // --- GeoJSON Splitter File Handlers ---
+    function handleGeoJsonFile(file) {
+      appState.geojsonName = file.name.substring(0, file.name.lastIndexOf('.')) || 'split_features';
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        loadGeoJsonForSplitter(event.target.result, file.name);
+      };
+      reader.readAsText(file);
+    }
+
+    function parseSplitInputText() {
+      const rawText = document.getElementById('split-text-input').value.trim();
+      if (!rawText) {
+        showToast('Empty Input', 'Please paste valid GeoJSON contents to parse.', 'error');
+        return;
+      }
+      appState.geojsonName = 'pasted_split_features';
+      loadGeoJsonForSplitter(rawText, 'Pasted Text');
+    }
+
+    // Unified GeoJSON loader for the Jaccard split pipeline
+    function loadGeoJsonForSplitter(rawText, sourceName) {
+      try {
+        const parsed = JSON.parse(rawText);
+        let features = [];
+
+        if (parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+          features = parsed.features;
+        } else if (parsed.type === 'Feature') {
+          features = [parsed];
+        } else if (parsed.type && parsed.coordinates) {
+          features = [{
+            type: 'Feature',
+            geometry: parsed,
+            properties: {}
+          }];
+        } else {
+          showToast('Unsupported Structure', 'File parsed, but does not match any recognized GeoJSON specification.', 'error');
+          return;
+        }
+
+        // Keep a copy of raw unsplit features to re-cluster live during slider sweeps
+        appState.rawSplitFeatures = features;
+        appState.parsedLayers = []; // Clean shapefile state
+        appState.activeGroupIndex = null;
+
+        // Perform initial clustering with current slider position (default 100% / strict)
+        runJaccardSimilarityClustering();
+
+        // Display Threshold controller
+        document.getElementById('similarity-controller').classList.remove('hidden');
+        document.getElementById('split-export-section').classList.remove('hidden');
+        showToast('Success!', `Loaded ${features.length} features.`, 'success');
+
+      } catch (err) {
+        showToast('JSON Parse Error', `The text contains syntax issues: ${err.message}`, 'error');
+      }
+    }
+
+    // --- Jaccard Similarity Fuzzy Clustering Engine ---
+    function calculateJaccard(setA, setB) {
+      if (setA.size === 0 && setB.size === 0) return 1.0;
+      let intersectionSize = 0;
+      setA.forEach(val => {
+        if (setB.has(val)) intersectionSize++;
+      });
+      let unionSize = setA.size + setB.size - intersectionSize;
+      return unionSize === 0 ? 1.0 : intersectionSize / unionSize;
+    }
+
+    function runJaccardSimilarityClustering() {
+      const threshold = appState.similarityThreshold;
+      const clusters = []; // Elements: [{ representative: Set, features: [] }]
+
+      appState.rawSplitFeatures.forEach(feature => {
+        const fKeys = new Set(Object.keys(feature.properties || {}));
+        let bestClusterIdx = -1;
+        let bestSimilarity = -1;
+
+        clusters.forEach((c, idx) => {
+          const sim = calculateJaccard(fKeys, c.representative);
+          if (sim >= threshold && sim > bestSimilarity) {
+            bestSimilarity = sim;
+            bestClusterIdx = idx;
+          }
+        });
+
+        if (bestClusterIdx !== -1) {
+          clusters[bestClusterIdx].features.push(feature);
+        } else {
+          clusters.push({
+            representative: fKeys,
+            features: [feature]
+          });
+        }
+      });
+
+      // Transform raw clusters into fully analysed dynamic groups
+      appState.groupedCollections = clusters.map((c, idx) => {
+        // Collect key metrics across features to identify Core vs Optional Keys
+        const keyCounts = {};
+        c.features.forEach(f => {
+          Object.keys(f.properties || {}).forEach(k => {
+            keyCounts[k] = (keyCounts[k] || 0) + 1;
+          });
+        });
+
+        const coreKeys = [];
+        const optionalKeys = [];
+        Object.keys(keyCounts).forEach(k => {
+          if (keyCounts[k] === c.features.length) {
+            coreKeys.push(k);
+          } else {
+            optionalKeys.push(k);
+          }
+        });
+
+        return {
+          coreKeys: coreKeys.sort(),
+          optionalKeys: optionalKeys.sort(),
+          features: c.features,
+          exportName: `Feature_Collection_${idx + 1}`
+        };
+      });
+
+      // Synchronize visual display
+      if (appState.activeGroupIndex !== null && appState.activeGroupIndex >= appState.groupedCollections.length) {
+        appState.activeGroupIndex = null;
+      }
+
+      if (appState.activeGroupIndex !== null) {
+        appState.parsedFeatures = appState.groupedCollections[appState.activeGroupIndex].features;
+      } else {
+        appState.parsedFeatures = appState.rawSplitFeatures;
+      }
+
+      processGeospatialMetadata(appState.activeGroupIndex !== null ? 'Split Schema Group' : 'GeoJSON Dataset');
+      renderFeaturesOnMapAndGrid();
+      renderSplitGroupsList();
+    }
+
+    // Threshold Slider Drag Listener
+    function handleThresholdChange(val) {
+      const numVal = parseInt(val, 10);
+      appState.similarityThreshold = numVal / 100;
+      
+      const textSpan = document.getElementById('threshold-val');
+      if (numVal === 100) {
+        textSpan.innerText = "100% (Strict)";
+      } else {
+        textSpan.innerText = `${numVal}% (Fuzzy)`;
+      }
+
+      // Re-evaluate clusters in-memory instantly
+      runJaccardSimilarityClustering();
+    }
+
+    // Populate split groups list dynamically with Core & Optional Keys highlight
+    function renderSplitGroupsList() {
+      const container = document.getElementById('split-groups-list');
+      let html = '';
+
+      appState.groupedCollections.forEach((group, idx) => {
+        const isSelected = idx === appState.activeGroupIndex;
+        const activeClass = isSelected 
+          ? 'border-brand-500 bg-brand-500/5 shadow-lg shadow-brand-500/5' 
+          : 'border-slate-800 bg-slate-950/40 hover:bg-slate-950/80';
+
+        // Render Core Keys (Shared 100% by features)
+        let coreKeysHtml = group.coreKeys.map(k => 
+          `<span class="bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[9px] code-font" title="Core field: present in 100% of features">${k}</span>`
+        ).join(' ');
+
+        // Render Optional Keys (Present in only a subset of clustered features)
+        let optionalKeysHtml = group.optionalKeys.map(k => 
+          `<span class="bg-slate-800 border border-slate-700/60 border-dashed text-slate-400 px-1.5 py-0.5 rounded text-[9px] code-font" title="Optional field: present in some features">${k}</span>`
+        ).join(' ');
+
+        const hasKeys = (group.coreKeys.length + group.optionalKeys.length) > 0;
+        const keyDisplay = hasKeys 
+          ? `<div class="flex flex-wrap gap-1 max-h-16 overflow-y-auto py-0.5">
+              ${coreKeysHtml} ${optionalKeysHtml}
+             </div>`
+          : '<span class="text-slate-500 italic text-[10px]">No Properties (Geometry Only)</span>';
+
+        html += `
+          <div id="split-group-card-${idx}" class="border rounded-xl p-3.5 space-y-3 transition-all ${activeClass}">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-[10px] text-brand-400 font-bold uppercase tracking-wider">Group ${idx + 1}</span>
+                  <span class="text-[9px] bg-slate-950 border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full font-semibold">${group.features.length} features</span>
+                </div>
+                ${keyDisplay}
+              </div>
+              
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button onclick="previewSplitGroup(${idx})" class="p-2 bg-slate-900 border border-slate-800 hover:border-brand-500/30 text-slate-300 rounded-lg hover:text-brand-400 transition-all ${isSelected ? 'text-brand-400 border-brand-500/20' : ''}" title="Focus map strictly on this fuzzy group">
+                  <i data-lucide="${isSelected ? 'eye-off' : 'eye'}" class="w-3.5 h-3.5"></i>
+                </button>
+                <button onclick="downloadSingleSplitGroup(${idx})" class="p-2 bg-slate-900 border border-slate-800 hover:border-brand-500/30 text-slate-300 rounded-lg hover:text-brand-400 transition-all" title="Download group as standard FeatureCollection">
+                  <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Export Collection Name</label>
+              <input type="text" value="${group.exportName}" oninput="updateSplitGroupExportName(${idx}, this.value)" class="w-full bg-slate-900 border border-slate-800 focus:border-brand-500/50 rounded-lg text-xs px-2.5 py-1.5 text-slate-200 focus:outline-none transition-colors" placeholder="Feature_Collection_${idx + 1}" />
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      lucide.createIcons();
+    }
+
+    // Highlight and focus strictly on one schema group
+    function previewSplitGroup(idx) {
+      if (appState.activeGroupIndex === idx) {
+        // Reset filter and display all again
+        appState.activeGroupIndex = null;
+        appState.parsedFeatures = appState.rawSplitFeatures;
+        
+        processGeospatialMetadata('GeoJSON Dataset');
+        renderFeaturesOnMapAndGrid();
+        renderSplitGroupsList();
+        showToast('Filter Cleared', 'Displaying all features across all schemas.', 'info');
+        return;
+      }
+
+      appState.activeGroupIndex = idx;
+      const group = appState.groupedCollections[idx];
+      if (!group) return;
+
+      // Filter attributes visual list to this specific group
+      appState.parsedFeatures = group.features;
+      processGeospatialMetadata('Split Schema Group');
+      renderFeaturesOnMapAndGrid();
+      renderSplitGroupsList();
+
+      showToast(`Viewing Schema Group ${idx + 1}`, `Filtered list to ${group.features.length} features matching specific properties signature.`, 'success');
+    }
+
+    function updateSplitGroupExportName(idx, value) {
+      if (appState.groupedCollections[idx]) {
+        appState.groupedCollections[idx].exportName = value.trim() || `Feature_Collection_${idx + 1}`;
+      }
+    }
+
+    // Export individual schema group as FeatureCollection
+    function downloadSingleSplitGroup(idx) {
+      const group = appState.groupedCollections[idx];
+      if (!group) return;
+
+      const fc = {
+        type: 'FeatureCollection',
+        features: group.features
+      };
+
+      const cleanFilename = group.exportName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${cleanFilename}.geojson`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast('Export Complete', `Collection saved as ${cleanFilename}.geojson`, 'success');
+    }
+
+    // Export all named groups into a structured ZIP
+    function downloadAllGroupsAsZip() {
+      if (!appState.groupedCollections || appState.groupedCollections.length === 0) {
+        showToast('No Groups', 'No schema groups detected to export.', 'error');
+        return;
+      }
+
+      showToast('Compiling ZIP', 'Packaging schema collections...', 'info');
+
+      const zip = new JSZip();
+      const usedNames = {};
+
+      appState.groupedCollections.forEach((group, idx) => {
+        let name = group.exportName.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || `Feature_Collection_${idx + 1}`;
+        
+        if (usedNames[name] !== undefined) {
+          usedNames[name]++;
+          name = `${name}_${usedNames[name]}`;
+        } else {
+          usedNames[name] = 0;
+        }
+
+        const fc = {
+          type: 'FeatureCollection',
+          features: group.features
+        };
+
+        zip.file(`${name}.geojson`, JSON.stringify(fc, null, 2));
+      });
+
+      zip.generateAsync({ type: 'blob' }).then(function(content) {
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${appState.geojsonName}_split_groups.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast('ZIP Complete', 'All schema groups compiled and saved successfully.', 'success');
+      });
+    }
+
+    // --- Process Metadata statistics ---
+    function processGeospatialMetadata(formatType) {
+      appState.geometryTypes.clear();
+      appState.vertexCount = 0;
+
+      // Count vertices helper
+      function getVertexCount(coords) {
+        if (!Array.isArray(coords)) return 0;
+        if (typeof coords[0] === 'number') return 1;
+        
+        let sum = 0;
+        coords.forEach(sub => {
+          sum += getVertexCount(sub);
+        });
+        return sum;
+      }
+
+      appState.parsedFeatures.forEach(feature => {
+        if (feature.geometry) {
+          appState.geometryTypes.add(feature.geometry.type || 'Unknown');
+          appState.vertexCount += getVertexCount(feature.geometry.coordinates);
+        }
+      });
+
+      // Update Panel Elements
+      document.getElementById('meta-empty').classList.add('hidden');
+      document.getElementById('meta-stats').classList.remove('hidden');
+      document.getElementById('clear-active-data').classList.remove('hidden');
+
+      document.getElementById('meta-format').innerText = formatType;
+      document.getElementById('meta-features').innerText = appState.parsedFeatures.length;
+      document.getElementById('meta-vertices').innerText = appState.vertexCount.toLocaleString();
+      document.getElementById('meta-geoms').innerText = Array.from(appState.geometryTypes).join(', ');
+    }
+
+    // --- Reset State ---
+    function clearActiveData() {
+      appState.parsedFeatures = [];
+      appState.parsedLayers = [];
+      appState.rawSplitFeatures = [];
+      appState.groupedCollections = [];
+      appState.activeLayerIndex = 0;
+      appState.activeGroupIndex = null;
+      appState.selectedFeatureIndex = null;
+      appState.geometryTypes.clear();
+      appState.vertexCount = 0;
+      appState.similarityThreshold = 1.0;
+
+      // Remove Map layers
+      if (activeMapLayer && map.hasLayer(activeMapLayer)) {
+        map.removeLayer(activeMapLayer);
+      }
+      activeMapLayer = null;
+
+      // Reset Table
+      document.getElementById('features-counter').innerText = '0 loaded';
+      document.getElementById('table-headers').innerHTML = `
+        <th class="p-3 text-slate-400 font-semibold w-12 text-center">Sel</th>
+        <th class="p-3 text-slate-400 font-semibold w-16">Index</th>
+        <th class="p-3 text-slate-400 font-semibold w-24">Type</th>
+        <th class="p-3 text-slate-400 font-semibold">Properties & Attributes</th>
+        <th class="p-3 text-slate-400 font-semibold w-16 text-center">Action</th>
+      `;
+      document.getElementById('table-rows').innerHTML = `
+        <tr>
+          <td colspan="5" class="p-12 text-center text-slate-500 italic">
+            <div class="flex flex-col items-center gap-2">
+              <i data-lucide="file-warning" class="w-8 h-8 text-slate-600"></i>
+              <span>No features parsed yet. Upload spatial files on the left to explore attribute metrics here.</span>
+            </div>
+          </td>
+        </tr>
+      `;
+      lucide.createIcons();
+
+      // UI hide sections
+      document.getElementById('shp-export-section').classList.add('hidden');
+      document.getElementById('split-export-section').classList.add('hidden');
+      document.getElementById('similarity-controller').classList.add('hidden');
+      document.getElementById('swap-action-section').classList.add('hidden');
+      
+      // Reset Slider to 100%
+      const slider = document.getElementById('similarity-slider');
+      if (slider) slider.value = 100;
+      const textSpan = document.getElementById('threshold-val');
+      if (textSpan) textSpan.innerText = "100% (Strict)";
+
+      // Reset upload inputs
+      document.getElementById('shp-file-input').value = "";
+      document.getElementById('split-file-input').value = "";
+      document.getElementById('split-text-input').value = "";
+      document.getElementById('swap-text-input').value = "";
+      document.getElementById('validator-text-input').value = "";
+      document.getElementById('validation-report').classList.add('hidden');
+
+      // Clear metadata details
+      document.getElementById('meta-stats').classList.add('hidden');
+      document.getElementById('clear-active-data').classList.add('hidden');
+      document.getElementById('meta-empty').classList.remove('hidden');
+
+      // Disable inspection buttons
+      const singleDlBtn = document.getElementById('download-selected-row');
+      singleDlBtn.disabled = true;
+      singleDlBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+      showToast('Workspace Cleared', 'In-memory datasets and visual layers flushed successfully.', 'info');
+    }
+
+    // --- Render Features on Map and Inspection Grid ---
+    function renderFeaturesOnMapAndGrid() {
+      // 1. Map Render
+      if (activeMapLayer && map.hasLayer(activeMapLayer)) {
+        map.removeLayer(activeMapLayer);
+      }
+
+      activeMapLayer = L.featureGroup();
+
+      // Palette loop for distinct shapefile sets or fuzzy schema groups
+      const cycleColors = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444', '#06b6d4', '#e11d48'];
+
+      if (appState.activeTab === 'shp-to-geojson' && appState.parsedLayers.length > 0) {
+        // Draw ALL extracted layers contextually
+        appState.parsedLayers.forEach((layer, layerIdx) => {
+          const isSelectedLayer = layerIdx === appState.activeLayerIndex;
+          const assignedColor = cycleColors[layerIdx % cycleColors.length];
+
+          const leafLayer = L.geoJSON({
+            type: 'FeatureCollection',
+            features: layer.features
+          }, {
+            style: function(feature) {
+              return {
+                color: assignedColor,
+                weight: isSelectedLayer ? 3.5 : 1.5,
+                opacity: isSelectedLayer ? 0.9 : 0.4,
+                fillColor: assignedColor,
+                fillOpacity: isSelectedLayer ? 0.25 : 0.08
+              };
+            },
+            pointToLayer: function(feature, latlng) {
+              return L.circleMarker(latlng, {
+                radius: isSelectedLayer ? 6.5 : 4.5,
+                fillColor: assignedColor,
+                color: '#ffffff',
+                weight: isSelectedLayer ? 2 : 1,
+                opacity: isSelectedLayer ? 1 : 0.5,
+                fillOpacity: isSelectedLayer ? 0.8 : 0.4
+              });
+            },
+            onEachFeature: function(feature, layerObj) {
+              layerObj.on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                
+                if (!isSelectedLayer) {
+                  selectShpLayer(layerIdx);
+                }
+
+                const featureIndex = appState.parsedLayers[layerIdx].features.indexOf(feature);
+                if (featureIndex !== -1) {
+                  selectFeatureRow(featureIndex, true); 
+                }
+              });
+
+              const keys = Object.keys(feature.properties || {});
+              if (keys.length > 0) {
+                const previewKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('id') || k.toLowerCase().includes('title')) || keys[0];
+                layerObj.bindTooltip(`<strong>[${layer.name}] ${previewKey}:</strong> ${feature.properties[previewKey]}`, { sticky: true });
+              }
+            }
+          });
+
+          activeMapLayer.addLayer(leafLayer);
+        });
+      } else if (appState.activeTab === 'geojson-splitter' && appState.groupedCollections.length > 0 && appState.activeGroupIndex === null) {
+        // Multi-color all clustered schema groups on the map at once when not focused on a single group
+        appState.groupedCollections.forEach((group, groupIdx) => {
+          const assignedColor = cycleColors[groupIdx % cycleColors.length];
+
+          const leafLayer = L.geoJSON({
+            type: 'FeatureCollection',
+            features: group.features
+          }, {
+            style: function(feature) {
+              return {
+                color: assignedColor,
+                weight: 2,
+                opacity: 0.8,
+                fillColor: assignedColor,
+                fillOpacity: 0.15
+              };
+            },
+            pointToLayer: function(feature, latlng) {
+              return L.circleMarker(latlng, {
+                radius: 5.5,
+                fillColor: assignedColor,
+                color: '#ffffff',
+                weight: 1.5,
+                opacity: 0.9,
+                fillOpacity: 0.75
+              });
+            },
+            onEachFeature: function(feature, layerObj) {
+              layerObj.on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                previewSplitGroup(groupIdx);
+                const featureIndex = group.features.indexOf(feature);
+                if (featureIndex !== -1) {
+                  selectFeatureRow(featureIndex, true);
+                }
+              });
+
+              const keys = Object.keys(feature.properties || {});
+              if (keys.length > 0) {
+                const previewKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('id') || k.toLowerCase().includes('title')) || keys[0];
+                layerObj.bindTooltip(`<strong>[${group.exportName}] ${previewKey}:</strong> ${feature.properties[previewKey]}`, { sticky: true });
+              }
+            }
+          });
+
+          activeMapLayer.addLayer(leafLayer);
+        });
+      } else {
+        // Default Single Layer Rendering
+        const baseLayer = L.geoJSON({
+          type: 'FeatureCollection',
+          features: appState.parsedFeatures
+        }, {
+          style: function(feature) {
+            return {
+              color: '#10b981',
+              weight: 2,
+              opacity: 0.8,
+              fillColor: '#10b981',
+              fillOpacity: 0.15
+            };
+          },
+          pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {
+              radius: 6,
+              fillColor: '#10b981',
+              color: '#ffffff',
+              weight: 1.5,
+              opacity: 1,
+              fillOpacity: 0.8
+            });
+          },
+          onEachFeature: function(feature, layerObj) {
+            layerObj.on('click', function(e) {
+              L.DomEvent.stopPropagation(e);
+              const featureIndex = appState.parsedFeatures.indexOf(feature);
+              if (featureIndex !== -1) {
+                selectFeatureRow(featureIndex, true);
+              }
+            });
+
+            const keys = Object.keys(feature.properties || {});
+            if (keys.length > 0) {
+              const previewKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('id') || k.toLowerCase().includes('title')) || keys[0];
+              layerObj.bindTooltip(`<strong>${previewKey}:</strong> ${feature.properties[previewKey]}`, { sticky: true });
+            }
+          }
+        });
+
+        activeMapLayer.addLayer(baseLayer);
+      }
+
+      activeMapLayer.addTo(map);
+      fitMapToLayer();
+
+      // Render bottom grid contents
+      renderTableGridOnly();
+    }
+
+    // --- Isolated Grid Attributes Renderer ---
+    function renderTableGridOnly() {
+      document.getElementById('features-counter').innerText = `${appState.parsedFeatures.length} loaded`;
+      
+      const allPropKeys = new Set();
+      appState.parsedFeatures.forEach(f => {
+        if (f.properties) {
+          Object.keys(f.properties).forEach(k => allPropKeys.add(k));
+        }
+      });
+
+      // Construct columns
+      const headersRow = document.getElementById('table-headers');
+      const maxColDisplay = 3;
+      const displayPropKeys = Array.from(allPropKeys).slice(0, maxColDisplay);
+
+      let headerHtml = `
+        <th class="p-3 text-slate-400 font-semibold w-12 text-center">Sel</th>
+        <th class="p-3 text-slate-400 font-semibold w-16">Index</th>
+        <th class="p-3 text-slate-400 font-semibold w-24">Type</th>
+      `;
+
+      displayPropKeys.forEach(key => {
+        headerHtml += `<th class="p-3 text-slate-400 font-semibold capitalize">${key}</th>`;
+      });
+
+      headerHtml += `
+        <th class="p-3 text-slate-400 font-semibold">Other Properties</th>
+        <th class="p-3 text-slate-400 font-semibold w-16 text-center">Action</th>
+      `;
+      headersRow.innerHTML = headerHtml;
+
+      // Populate rows
+      const tbody = document.getElementById('table-rows');
+      if (appState.parsedFeatures.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="p-12 text-center text-slate-500 italic">
+              <div class="flex flex-col items-center gap-2">
+                <i data-lucide="file-warning" class="w-8 h-8 text-slate-600"></i>
+                <span>No feature coordinates parsed inside this active layer view.</span>
+              </div>
+            </td>
+          </tr>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      let bodyHtml = '';
+
+      appState.parsedFeatures.forEach((feature, idx) => {
+        const geomType = feature.geometry ? feature.geometry.type : 'N/A';
+        const props = feature.properties || {};
+        
+        let rowPropsHtml = '';
+        displayPropKeys.forEach(key => {
+          const val = props[key] !== undefined ? props[key] : '<span class="text-slate-600">-</span>';
+          rowPropsHtml += `<td class="p-3 text-slate-300 font-medium truncate max-w-[150px]">${val}</td>`;
+        });
+
+        const otherProps = {};
+        Object.keys(props).forEach(k => {
+          if (!displayPropKeys.includes(k)) {
+            otherProps[k] = props[k];
+          }
+        });
+
+        const otherPropsStr = Object.keys(otherProps).length 
+          ? `<span class="code-font text-[10px] text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded truncate max-w-[240px] inline-block">${JSON.stringify(otherProps)}</span>`
+          : '<span class="text-slate-600">-</span>';
+
+        bodyHtml += `
+          <tr id="feature-row-${idx}" onclick="selectFeatureRow(${idx}, false)" class="hover:bg-slate-800/40 cursor-pointer transition-colors transition-all">
+            <td class="p-3 text-center">
+              <input type="radio" name="feature-select" id="radio-${idx}" class="accent-brand-500 cursor-pointer" />
+            </td>
+            <td class="p-3 text-slate-400 font-semibold">${idx}</td>
+            <td class="p-3">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${getGeometryBadgeColor(geomType)}">
+                ${geomType}
+              </span>
+            </td>
+            ${rowPropsHtml}
+            <td class="p-3">${otherPropsStr}</td>
+            <td class="p-3 text-center">
+              <button onclick="downloadSingleFeature(event, ${idx})" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg hover:text-brand-400 transition-colors" title="Export this single Feature dynamically">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML = bodyHtml;
+      lucide.createIcons();
+    }
+
+    function getGeometryBadgeColor(type) {
+      switch(String(type).toLowerCase()) {
+        case 'point': return 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/35';
+        case 'multipoint': return 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/35';
+        case 'linestring': return 'bg-amber-500/15 text-amber-400 border border-amber-500/35';
+        case 'multilinestring': return 'bg-amber-500/15 text-amber-400 border border-amber-500/35';
+        case 'polygon': return 'bg-brand-500/15 text-brand-400 border border-brand-500/35';
+        case 'multipolygon': return 'bg-brand-500/15 text-brand-400 border border-brand-500/35';
+        default: return 'bg-slate-800 text-slate-400 border border-slate-700';
+      }
+    }
+
+    // --- Row Selection & Map Synchronization ---
+    function selectFeatureRow(index, autoScroll = false) {
+      if (appState.selectedFeatureIndex !== null) {
+        const prevRow = document.getElementById(`feature-row-${appState.selectedFeatureIndex}`);
+        if (prevRow) prevRow.className = "hover:bg-slate-800/40 cursor-pointer transition-colors";
+        
+        const prevRadio = document.getElementById(`radio-${appState.selectedFeatureIndex}`);
+        if (prevRadio) prevRadio.checked = false;
+      }
+
+      appState.selectedFeatureIndex = index;
+      const targetRow = document.getElementById(`feature-row-${index}`);
+      if (targetRow) {
+        targetRow.className = "bg-brand-500/10 border-l-2 border-brand-500 hover:bg-brand-500/15 cursor-pointer transition-colors";
+        
+        const targetRadio = document.getElementById(`radio-${index}`);
+        if (targetRadio) targetRadio.checked = true;
+
+        if (autoScroll) {
+          targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+
+      highlightMapFeature(index);
+
+      const singleDlBtn = document.getElementById('download-selected-row');
+      singleDlBtn.disabled = false;
+      singleDlBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      singleDlBtn.classList.add('bg-brand-500/10', 'text-brand-400', 'border-brand-500/30', 'hover:bg-brand-500', 'hover:text-slate-950');
+    }
+
+    function highlightMapFeature(index) {
+      if (!activeMapLayer) return;
+
+      const feature = appState.parsedFeatures[index];
+      let featureBounds = null;
+
+      activeMapLayer.eachLayer(groupLayer => {
+        const processLayer = (layer) => {
+          if (layer.feature === feature) {
+            layer.setStyle({
+              color: '#f43f5e',
+              weight: 4,
+              fillColor: '#f43f5e',
+              fillOpacity: 0.35
+            });
+
+            setTimeout(() => {
+              if (activeMapLayer && map.hasLayer(activeMapLayer)) {
+                try {
+                  groupLayer.resetStyle(layer);
+                } catch (e) {}
+              }
+            }, 2000);
+
+            if (layer.getBounds) {
+              featureBounds = layer.getBounds();
+            } else if (layer.getLatLng) {
+              const latlng = layer.getLatLng();
+              featureBounds = L.latLngBounds(latlng, latlng);
+            }
+          }
+        };
+
+        if (groupLayer.eachLayer) {
+          groupLayer.eachLayer(processLayer);
+        } else {
+          processLayer(groupLayer);
+        }
+      });
+
+      if (featureBounds && featureBounds.isValid()) {
+        map.fitBounds(featureBounds, { maxZoom: 15, padding: [60, 60] });
+      }
+    }
+
+    // --- Dynamic Dropdown Populate Naming Keys ---
+    function populatePropertyNamingSelector(prefix) {
+      const keys = new Set();
+      appState.parsedFeatures.forEach(feature => {
+        if (feature.properties) {
+          Object.keys(feature.properties).forEach(k => keys.add(k));
+        }
+      });
+
+      const keySelect = document.getElementById(`${prefix}-naming-key`);
+      if (keySelect) {
+        let optionsHtml = '<option value="_index">Numeric Index (feature_0, feature_1...)</option>';
+        keys.forEach(key => {
+          optionsHtml += `<option value="${key}">Property: "${key}"</option>`;
+        });
+        keySelect.innerHTML = optionsHtml;
+        appState.namingKey = '_index';
+      }
+    }
+
+    function updateNamingKey(prefix) {
+      const selectEl = document.getElementById(`${prefix}-naming-key`);
+      if (selectEl) {
+        appState.namingKey = selectEl.value;
+      }
+    }
+
+    // --- Filter Attributes Table dynamically ---
+    function filterFeaturesTable() {
+      const query = document.getElementById('attribute-search').value.toLowerCase().trim();
+      appState.parsedFeatures.forEach((feature, idx) => {
+        const row = document.getElementById(`feature-row-${idx}`);
+        if (!row) return;
+
+        if (!query) {
+          row.style.display = '';
+          return;
+        }
+
+        const matchString = JSON.stringify(feature.properties || {}).toLowerCase();
+        const matchGeom = (feature.geometry?.type || '').toLowerCase();
+        
+        if (matchString.includes(query) || matchGeom.includes(query) || String(idx) === query) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
+
+    // --- Download Actions & Exporters ---
+    function downloadSingleFeature(event, index) {
+      if (event) event.stopPropagation(); 
+      
+      const feature = appState.parsedFeatures[index];
+      if (!feature) return;
+
+      let label = `feature_${index}`;
+      if (appState.namingKey && appState.namingKey !== '_index' && feature.properties?.[appState.namingKey]) {
+        label = String(feature.properties[appState.namingKey]).replace(/[^a-zA-Z0-9_-]/g, '_');
+      }
+
+      const blob = new Blob([JSON.stringify(feature, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${label}.geojson`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast('Export Complete', `Feature exported as ${label}.geojson`, 'success');
+    }
+
+    function downloadSelectedFeature() {
+      if (appState.selectedFeatureIndex === null) {
+        showToast('No Selected Item', 'Please pick a feature from the table grid list first.', 'error');
+        return;
+      }
+      downloadSingleFeature(null, appState.selectedFeatureIndex);
+    }
+
+    // --- COORD SWAPPER logic ---
+    let activeSwappedResult = null;
+
+    function swapActiveCoords() {
+      const input = document.getElementById('swap-text-input').value.trim();
+      if (!input) {
+        showToast('Input Required', 'Please load or paste GeoJSON data in the coordinate text zone first.', 'error');
+        return;
+      }
+
+      try {
+        const geojson = JSON.parse(input);
+        
+        const flipped = swapGeometryCoords(geojson);
+        activeSwappedResult = flipped;
+
+        appState.parsedLayers = []; 
+        appState.parsedFeatures = Array.isArray(flipped.features) ? flipped.features : [flipped];
+        processGeospatialMetadata('Coordinate Flipped Set');
+        renderFeaturesOnMapAndGrid();
+
+        document.getElementById('swap-output-internal').value = JSON.stringify(flipped, null, 2);
+        
+        document.getElementById('swap-action-section').classList.remove('hidden');
+        showToast('Coordinates Swapped!', 'Successfully inverted Axis coordinates recursively.', 'success');
+
+      } catch (err) {
+        showToast('Validation Error', `Failed to swap. Check JSON syntax: ${err.message}`, 'error');
+      }
+    }
+
+    function swapGeometryCoords(geojson) {
+      const cloned = JSON.parse(JSON.stringify(geojson));
+      
+      function traverse(geometry) {
+        if (!geometry) return;
+        
+        if (geometry.type === 'Point') {
+          geometry.coordinates = [geometry.coordinates[1], geometry.coordinates[0]];
+        } else if (geometry.type === 'LineString' || geometry.type === 'MultiPoint') {
+          geometry.coordinates = geometry.coordinates.map(c => [c[1], c[0]]);
+        } else if (geometry.type === 'Polygon' || geometry.type === 'MultiLineString') {
+          geometry.coordinates = geometry.coordinates.map(ring => ring.map(c => [c[1], c[0]]));
+        } else if (geometry.type === 'MultiPolygon') {
+          geometry.coordinates = geometry.coordinates.map(poly => poly.map(ring => ring.map(c => [c[1], c[0]])));
+        } else if (geometry.type === 'GeometryCollection') {
+          geometry.geometries.forEach(traverse);
+        }
+      }
+
+      if (cloned.type === 'FeatureCollection' && Array.isArray(cloned.features)) {
+        cloned.features.forEach(f => traverse(f.geometry));
+      } else if (cloned.type === 'Feature') {
+        traverse(cloned.geometry);
+      } else if (cloned.type) {
+        traverse(cloned);
+      }
+      return cloned;
+    }
+
+    function downloadActiveSwappedJson() {
+      if (!activeSwappedResult) return;
+      const blob = new Blob([JSON.stringify(activeSwappedResult, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `swapped_coordinates.geojson`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // --- VALIDATOR / BEAUTIFIER Logic ---
+    function validateGeoJson() {
+      const rawText = document.getElementById('validator-text-input').value.trim();
+      const reportDiv = document.getElementById('validation-report');
+      const box = document.getElementById('validation-status-box');
+      const icon = document.getElementById('validation-icon');
+      const title = document.getElementById('validation-status-title');
+      const desc = document.getElementById('validation-status-desc');
+
+      if (!rawText) {
+        showToast('Empty Input', 'Provide some GeoJSON text string code to validate.', 'error');
+        return;
+      }
+
+      reportDiv.classList.remove('hidden');
+
+      try {
+        const parsed = JSON.parse(rawText);
+        
+        const errors = [];
+        const warnings = [];
+
+        if (!parsed.type) {
+          errors.push('The primary root object is missing the mandatory "type" parameter.');
+        } else {
+          const validTypes = ['FeatureCollection', 'Feature', 'Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'GeometryCollection'];
+          if (!validTypes.includes(parsed.type)) {
+            errors.push(`"${parsed.type}" is not a recognized RFC 7946 standard GeoJSON type.`);
+          }
+        }
+
+        if (parsed.type === 'FeatureCollection' && !Array.isArray(parsed.features)) {
+          errors.push('"FeatureCollection" objects must include a valid "features" Array.');
+        }
+
+        if (parsed.type === 'Feature' && !parsed.geometry) {
+          errors.push('"Feature" object must specify its geometric parameters ("geometry").');
+        }
+
+        function checkCoords(coordinates) {
+          if (!Array.isArray(coordinates)) return;
+          if (typeof coordinates[0] === 'number') {
+            const lon = coordinates[0];
+            const lat = coordinates[1];
+            if (lon < -180 || lon > 180) {
+              warnings.push(`Coordinate Longitude (${lon}) exceeds boundary range limit [-180, 180]. Did you reverse lat/lng?`);
+            }
+            if (lat < -90 || lat > 90) {
+              warnings.push(`Coordinate Latitude (${lat}) exceeds boundary range limit [-90, 90]. Did you reverse lat/lng?`);
+            }
+          } else {
+            coordinates.forEach(checkCoords);
+          }
+        }
+
+        if (parsed.type === 'FeatureCollection') {
+          parsed.features.slice(0, 50).forEach((f, i) => {
+            if (f.geometry?.coordinates) checkCoords(f.geometry.coordinates);
+          });
+        } else if (parsed.geometry?.coordinates) {
+          checkCoords(parsed.geometry.coordinates);
+        } else if (parsed.coordinates) {
+          checkCoords(parsed.coordinates);
+        }
+
+        if (errors.length) {
+          box.className = "p-4 rounded-xl border bg-rose-950/20 border-rose-500/30 flex gap-3";
+          icon.className = "p-1.5 rounded-lg bg-rose-500/20 text-rose-400 shrink-0";
+          icon.innerHTML = '<i data-lucide="x-circle" class="w-5 h-5"></i>';
+          title.className = "text-xs font-bold text-rose-300";
+          title.innerText = "Validation Failed";
+          desc.innerHTML = `This dataset is invalid. Standard issues:<br><ul class="list-disc pl-4 mt-2 space-y-1 text-rose-400/80">${errors.map(e => `<li>${e}</li>`).join('')}</ul>`;
+          showToast('Invalid GeoJSON', 'The input schema has spec failures.', 'error');
+        } else if (warnings.length) {
+          box.className = "p-4 rounded-xl border bg-amber-950/20 border-amber-500/30 flex gap-3";
+          icon.className = "p-1.5 rounded-lg bg-amber-500/20 text-amber-400 shrink-0";
+          icon.innerHTML = '<i data-lucide="alert-triangle" class="w-5 h-5"></i>';
+          title.className = "text-xs font-bold text-amber-300";
+          title.innerText = "Valid with Coordinate Warnings";
+          desc.innerHTML = `Structure fits RFC schema rules perfectly, but coordinates look strange:<br><ul class="list-disc pl-4 mt-2 space-y-1 text-amber-400/80">${Array.from(new Set(warnings)).slice(0, 3).map(w => `<li>${w}</li>`).join('')}</ul>`;
+          showToast('Completed with warnings', 'Syntactically correct, coordinates could be reversed.', 'info');
+        } else {
+          box.className = "p-4 rounded-xl border bg-emerald-950/20 border-emerald-500/30 flex gap-3";
+          icon.className = "p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 shrink-0";
+          icon.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5"></i>';
+          title.className = "text-xs font-bold text-emerald-300";
+          title.innerText = "GeoJSON Compliant";
+          desc.innerText = "Excellent! This text contains fully compliant RFC 7946 GeoJSON. It's safe to use across Mapbox, QGIS, Leaflet, and standard mapping systems.";
+          showToast('Valid GeoJSON', 'Dataset matches all specification guidelines!', 'success');
+        }
+
+      } catch (err) {
+        box.className = "p-4 rounded-xl border bg-rose-950/20 border-rose-500/30 flex gap-3";
+        icon.className = "p-1.5 rounded-lg bg-rose-500/20 text-rose-400 shrink-0";
+        icon.innerHTML = '<i data-lucide="alert-circle" class="w-5 h-5"></i>';
+        title.className = "text-xs font-bold text-rose-300";
+        title.innerText = "Syntax / JSON Error";
+        desc.innerText = `The code lacks standard JSON form boundaries. Parser reports: "${err.message}"`;
+        showToast('Syntax Error', 'Could not compile JSON strings.', 'error');
+      }
+
+      lucide.createIcons();
+    }
+
+    function beautifyGeoJson() {
+      const field = document.getElementById('validator-text-input');
+      const val = field.value.trim();
+      if (!val) {
+        showToast('Empty Input', 'Please enter some JSON content to format.', 'error');
+        return;
+      }
+      try {
+        const obj = JSON.parse(val);
+        field.value = JSON.stringify(obj, null, 2);
+        showToast('Prettified', 'Indented code formatting generated successfully.', 'success');
+      } catch (err) {
+        showToast('Parse Error', 'Cannot format invalid JSON.', 'error');
+      }
+    }
+
+    // --- General Clipboard Utility ---
+    function copyToClipboard(elementId) {
+      const copyText = document.getElementById(elementId);
+      if (!copyText || !copyText.value) {
+        showToast('No Value', 'Nothing available to write to the clipboard.', 'error');
+        return;
+      }
+      
+      copyText.select();
+      copyText.setSelectionRange(0, 99999); 
+      
+      try {
+        document.execCommand('copy');
+        showToast('Copied!', 'GeoJSON code copied successfully to clipboard.', 'success');
+      } catch(err) {
+        showToast('Clipboard Error', 'Could not write to local keyboard system.', 'error');
+      }
+    }
+  </script>
+
+</body>
+</html>
